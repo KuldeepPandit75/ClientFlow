@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/api/jobs/run/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

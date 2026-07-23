@@ -1,0 +1,16 @@
+node_modules
+.DS_Store
+**/.DS_Store
+.env*
+!.env.example
+!.env.example.evolution
+
+.next
+dist
+build
+vercel-evolution-deployment-guide.md
+nginx.evolution.example.conf
+docker-compose.evolution.production.yml
+merge-duplicate-businesses.mjs
+seed-super-admin.mjs
+scripts
