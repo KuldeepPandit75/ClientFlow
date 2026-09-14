@@ -68,21 +68,35 @@ function buildTemplateContext(context: AutomationContext, businessName?: string)
 function getAiProviderConfig() {
   const provider = (process.env.AI_PROVIDER || process.env.LLM_PROVIDER || "openrouter").toLowerCase();
 
-  if (provider === "groq") {
+  // Generic custom provider — any OpenAI-compatible API (VyceAI, Together, etc.)
+  if (provider === "custom" || provider === "openai-compatible") {
+    const baseUrl = (process.env.AI_BASE_URL || "").replace(/\/+$/, "");
     return {
       provider,
-      apiKey: process.env.GROQ_API_KEY || process.env.AI_API_KEY || "",
-      model: process.env.GROQ_MODEL || process.env.AI_MODEL || "llama-3.1-8b-instant",
-      url: process.env.GROQ_API_BASE_URL || "https://api.groq.com/openai/v1/chat/completions",
+      apiKey: process.env.AI_API_KEY || "",
+      model: process.env.AI_MODEL || "gpt-3.5-turbo",
+      url: baseUrl ? `${baseUrl}/chat/completions` : "https://api.openai.com/v1/chat/completions",
       headers: {},
     };
   }
 
+  if (provider === "groq") {
+    const baseUrl = (process.env.GROQ_API_BASE_URL || process.env.AI_BASE_URL || "").replace(/\/+$/, "");
+    return {
+      provider,
+      apiKey: process.env.GROQ_API_KEY || process.env.AI_API_KEY || "",
+      model: process.env.GROQ_MODEL || process.env.AI_MODEL || "llama-3.1-8b-instant",
+      url: baseUrl ? `${baseUrl}/chat/completions` : "https://api.groq.com/openai/v1/chat/completions",
+      headers: {},
+    };
+  }
+
+  const baseUrl = (process.env.OPENROUTER_API_BASE_URL || process.env.AI_BASE_URL || "").replace(/\/+$/, "");
   return {
     provider: "openrouter",
     apiKey: process.env.OPENROUTER_API_KEY || process.env.AI_API_KEY || "",
     model: process.env.OPENROUTER_MODEL || process.env.AI_MODEL || "meta-llama/llama-3.2-3b-instruct:free",
-    url: process.env.OPENROUTER_API_BASE_URL || "https://openrouter.ai/api/v1/chat/completions",
+    url: baseUrl ? `${baseUrl}/chat/completions` : "https://openrouter.ai/api/v1/chat/completions",
     headers: {
       ...(process.env.NEXT_PUBLIC_APP_URL ? { "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL } : {}),
       "X-Title": process.env.AI_APP_TITLE || "ClientFlow WhatsApp Automation",
