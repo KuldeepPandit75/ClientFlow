@@ -1,6 +1,6 @@
 # ClientFlow
 
-ClientFlow is a multi-tenant WhatsApp Web automation learning project built with Next.js, MongoDB, and Evolution API. It deliberately does not use WABA, Meta Cloud API, or n8n.
+ClientFlow is a multi-tenant WhatsApp Web automation learning project built with Next.js, MongoDB, and Evolution API. It deliberately does not use WABA, Meta Cloud API, or n8n
 
 The product scope includes:
 
