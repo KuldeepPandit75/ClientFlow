@@ -76,35 +76,36 @@ async function upsertCustomers(businessId: string, conversations: ConversationRe
   const db = await getDb();
   const now = new Date();
   const businessObjectId = new ObjectId(businessId);
-  await Promise.all(
-    conversations.map((conversation) =>
-      db.collection<CustomerRecord>("customers").updateOne(
-        { businessId: businessObjectId, customerId: conversation.customerId },
-        {
-          $set: {
-            customerName: conversation.customerName,
-            phone: conversation.phone,
-            avatar: conversation.avatar,
-            source: conversation.source,
-            relatedJids: conversation.relatedJids || [],
-            lastMessage: conversation.lastMessage,
-            lastMessageAt: conversation.lastMessageAt || 0,
-            unreadCount: conversation.unread || 0,
-            conversationStatus: conversation.conversationStatus || "open",
-            accountKey: conversation.accountKey || "primary",
-            updatedAt: now,
-          },
-          $setOnInsert: {
-            businessId: businessObjectId,
-            customerId: conversation.customerId,
-            assignedAgentId: null,
-            createdAt: now,
-          },
+
+  const ops = conversations.map((conversation) => ({
+    updateOne: {
+      filter: { businessId: businessObjectId, customerId: conversation.customerId },
+      update: {
+        $set: {
+          customerName: conversation.customerName,
+          phone: conversation.phone,
+          avatar: conversation.avatar,
+          source: conversation.source,
+          relatedJids: conversation.relatedJids || [],
+          lastMessage: conversation.lastMessage,
+          lastMessageAt: conversation.lastMessageAt || 0,
+          unreadCount: conversation.unread || 0,
+          conversationStatus: conversation.conversationStatus || "open",
+          accountKey: conversation.accountKey || "primary",
+          updatedAt: now,
         },
-        { upsert: true },
-      ),
-    ),
-  );
+        $setOnInsert: {
+          businessId: businessObjectId,
+          customerId: conversation.customerId,
+          assignedAgentId: null,
+          createdAt: now,
+        },
+      },
+      upsert: true,
+    },
+  }));
+
+  await db.collection<CustomerRecord>("customers").bulkWrite(ops, { ordered: false });
 
   const records = await db.collection<CustomerRecord>("customers")
     .find({ businessId: businessObjectId, customerId: { $in: conversations.map((item) => item.customerId) } })
@@ -233,7 +234,22 @@ async function listEvolutionConversations(userEmail: string, page: number, limit
   }
 }
 
+const syncDebounce = new Map<string, { expiresAt: number; promise: Promise<void> }>();
+const SYNC_DEBOUNCE_MS = 25_000;
+
 async function syncRecentEvolutionCustomers(context: Awaited<ReturnType<typeof getBusinessContext>>) {
+  const debounceKey = context.businessId;
+  const existing = syncDebounce.get(debounceKey);
+  if (existing && existing.expiresAt > Date.now()) {
+    return existing.promise;
+  }
+
+  const promise = doSyncRecentEvolutionCustomers(context);
+  syncDebounce.set(debounceKey, { expiresAt: Date.now() + SYNC_DEBOUNCE_MS, promise });
+  return promise;
+}
+
+async function doSyncRecentEvolutionCustomers(context: Awaited<ReturnType<typeof getBusinessContext>>) {
   const db = await getDb();
   const sessions = await db.collection("whatsapp_sessions")
     .find({ businessId: new ObjectId(context.businessId), status: "connected" })
@@ -243,18 +259,22 @@ async function syncRecentEvolutionCustomers(context: Awaited<ReturnType<typeof g
     ? sessions.map((session) => String(session.accountKey || "primary"))
     : ["primary"];
 
-  const synced: ConversationRecord[] = [];
-  for (const accountKey of accountKeys) {
-    let page = 1;
-    let hasMore = true;
-    while (hasMore && synced.length < 500) {
-      const conversations = await listEvolutionConversations(context.ownerEmail, page, 50, accountKey);
-      synced.push(...conversations.items);
-      hasMore = conversations.hasMore;
-      page += 1;
-    }
-  }
+  const results = await Promise.all(
+    accountKeys.map(async (accountKey) => {
+      const items: ConversationRecord[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore && items.length < 500) {
+        const conversations = await listEvolutionConversations(context.ownerEmail, page, 50, accountKey);
+        items.push(...conversations.items);
+        hasMore = conversations.hasMore;
+        page += 1;
+      }
+      return items;
+    }),
+  );
 
+  const synced = results.flat();
   await upsertCustomers(context.businessId, synced);
 }
 

@@ -81,6 +81,7 @@ async function ensureBusinessIndexes() {
     db.collection("whatsapp_sessions").createIndex({ businessId: 1 }, { name: "whatsapp_sessions_business" }),
     db.collection("customers").createIndex({ businessId: 1, customerId: 1 }, { unique: true, name: "customers_tenant_customer_unique" }),
     db.collection("customers").createIndex({ businessId: 1, assignedAgentId: 1 }, { name: "customers_assigned_agent" }),
+    db.collection("customers").createIndex({ businessId: 1, lastMessageAt: -1 }, { name: "customers_business_last_message" }),
     db.collection("agent_invites").createIndex({ tokenHash: 1 }, { unique: true, name: "agent_invites_token_hash_unique" }),
     db.collection("audit_logs").createIndex({ businessId: 1, createdAt: -1 }, { name: "audit_logs_business_created" }),
   ]);

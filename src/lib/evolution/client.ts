@@ -207,8 +207,11 @@ const PLACEHOLDER_VALUES = new Set([
   "your_evolution_api_key",
 ]);
 const APP_TIME_ZONE = process.env.APP_TIME_ZONE || "Asia/Kolkata";
-const CHAT_CACHE_TTL_MS = 10_000;
+const CHAT_CACHE_TTL_MS = 30_000;
 const chatCache = new Map<string, { expiresAt: number; items: ConversationRecord[] }>();
+const rawChatCache = new Map<string, { expiresAt: number; chats: EvolutionChatRecord[] }>();
+const connectionStateCache = new Map<string, { expiresAt: number; state: string }>();
+const CONNECTION_STATE_TTL_MS = 15_000;
 
 function cleanUrl(value: string) {
   return value.replace(/\/+$/, "");
@@ -425,13 +428,19 @@ async function ensureInstance(config: EvolutionConfig) {
 }
 
 async function connectionState(config: EvolutionConfig) {
+  const cacheKey = config.instanceName;
+  const cached = connectionStateCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.state;
+
   try {
     const payload = await evolutionRequest<{ instance?: { state?: string; status?: string } }>(
       `/instance/connectionState/${encodeURIComponent(config.instanceName)}`,
       {},
       config,
     );
-    return payload.instance?.state || payload.instance?.status || "unknown";
+    const state = payload.instance?.state || payload.instance?.status || "unknown";
+    connectionStateCache.set(cacheKey, { expiresAt: Date.now() + CONNECTION_STATE_TTL_MS, state });
+    return state;
   } catch {
     return "unknown";
   }
@@ -831,14 +840,29 @@ function mapEvolutionMessage(record: EvolutionMessageRecord, fallbackJid: string
 }
 
 async function getRelatedEvolutionJids(config: EvolutionConfig, remoteJid: string) {
-  const chats = await evolutionRequest<EvolutionChatRecord[]>(
-    `/chat/findChats/${encodeURIComponent(config.instanceName)}`,
-    {
-      method: "POST",
-      body: JSON.stringify({}),
-    },
-    config,
-  ).catch(() => []);
+  const cacheKey = config.instanceName;
+  const cached = rawChatCache.get(cacheKey);
+  let chats: EvolutionChatRecord[];
+
+  if (cached && cached.expiresAt > Date.now()) {
+    chats = cached.chats;
+  } else {
+    chats = await evolutionRequest<EvolutionChatRecord[]>(
+      `/chat/findChats/${encodeURIComponent(config.instanceName)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+      config,
+    ).catch(() => []);
+
+    if (chats.length) {
+      rawChatCache.set(cacheKey, {
+        expiresAt: Date.now() + CHAT_CACHE_TTL_MS,
+        chats,
+      });
+    }
+  }
 
   const related = new Set<string>([remoteJid]);
   for (const chat of chats) {
@@ -875,15 +899,22 @@ export async function listEvolutionChats(
   let allItems = cached && cached.expiresAt > Date.now() ? cached.items : null;
 
   if (!allItems) {
-    const payload = await evolutionRequest<EvolutionChatRecord[]>(
-      `/chat/findChats/${encodeURIComponent(config.instanceName)}`,
-      {
-        method: "POST",
-        body: JSON.stringify({}),
-      },
-      config,
-    );
-    const contacts = await fetchEvolutionContacts(config);
+    const [payload, contacts] = await Promise.all([
+      evolutionRequest<EvolutionChatRecord[]>(
+        `/chat/findChats/${encodeURIComponent(config.instanceName)}`,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        },
+        config,
+      ),
+      fetchEvolutionContacts(config),
+    ]);
+
+    rawChatCache.set(cacheKey, {
+      expiresAt: Date.now() + CHAT_CACHE_TTL_MS,
+      chats: payload,
+    });
 
     allItems = mergeEvolutionChats(
       payload
