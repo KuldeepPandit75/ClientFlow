@@ -248,10 +248,19 @@ async function runAutomationForBusiness(
     pushName,
   });
 
-  await db.collection("messages").createIndex(
-    { businessId: 1, whatsappSessionId: 1, messageId: 1 },
-    { unique: true, sparse: true, name: "messages_tenant_session_external_unique" },
-  );
+  try {
+    await db.collection("messages").createIndex(
+      { businessId: 1, whatsappSessionId: 1, messageId: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { messageId: { $type: "string" }, whatsappSessionId: { $exists: true, $ne: null } },
+        name: "messages_tenant_session_external_unique_v2",
+      },
+    );
+    await db.collection("messages").dropIndex("messages_tenant_session_external_unique").catch(() => {});
+  } catch {
+    // Index may already exist
+  }
   const duplicateMessage = await db.collection("messages").findOne({
     businessId: businessObjectId,
     whatsappSessionId: account.whatsappSessionId,

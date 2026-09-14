@@ -169,6 +169,13 @@ async function generateAiReply(input: {
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    actionTrace(21, "AI provider request failed", {
+      provider: aiConfig.provider,
+      status: response.status,
+      url: aiConfig.url,
+      model: aiConfig.model,
+      responseBody: body.slice(0, 500),
+    });
     throw new Error(`AI provider request failed (${response.status}): ${body.slice(0, 300)}`);
   }
 
@@ -279,6 +286,7 @@ async function executeSendTextMessage(
       businessId: new ObjectId(context.businessId),
       accountKey,
       customerId: context.customer.customerId,
+      messageId: `auto_text_${context.customer.customerId}_${Date.now()}`,
       direction: "outgoing",
       messageType: "text",
       text: renderedMessage,
@@ -703,6 +711,7 @@ async function executeSendAiReply(
       businessId: new ObjectId(context.businessId),
       accountKey,
       customerId: context.customer.customerId,
+      messageId: `auto_ai_${context.customer.customerId}_${Date.now()}`,
       direction: "outgoing",
       messageType: "text",
       text: renderedReply,

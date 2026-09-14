@@ -377,8 +377,8 @@ async function createInstance(config: EvolutionConfig) {
           url: config.webhookUrl,
           byEvents: webhookByEvents,
           webhook_by_events: webhookByEvents,
-          base64: true,
-          webhook_base64: true,
+          base64: false,
+          webhook_base64: false,
           headers: config.webhookSecret
             ? { authorization: `Bearer ${config.webhookSecret}` }
             : undefined,
@@ -402,8 +402,8 @@ async function setInstanceWebhook(config: EvolutionConfig) {
           url: config.webhookUrl,
           byEvents: webhookByEvents,
           webhook_by_events: webhookByEvents,
-          base64: true,
-          webhook_base64: true,
+          base64: false,
+          webhook_base64: false,
           headers: config.webhookSecret
             ? { authorization: `Bearer ${config.webhookSecret}` }
             : undefined,

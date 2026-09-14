@@ -135,6 +135,7 @@ async function sendSessionMessage(input: {
     businessId: new ObjectId(input.businessId),
     accountKey: input.accountKey || "primary",
     customerId: input.customerId,
+    messageId: `session_${input.source}_${input.customerId}_${Date.now()}`,
     direction: "outgoing",
     messageType: "text",
     text: input.text,

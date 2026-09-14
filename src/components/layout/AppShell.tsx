@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AppSidebar } from "@/components/layout/AppSidebar";
+import { InboxCacheProvider } from "@/lib/inbox-cache";
 import { Menu } from "lucide-react";
 
 interface DashboardShellContextValue {
@@ -60,6 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!showDashboardShell) return <>{children}</>;
 
   return (
+    <InboxCacheProvider>
     <DashboardShellContext.Provider value={contextValue}>
       <div className="flex min-h-screen w-full bg-background grid-bg">
         <AppSidebar className="hidden md:flex" />
@@ -94,5 +96,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     </DashboardShellContext.Provider>
+    </InboxCacheProvider>
   );
 }

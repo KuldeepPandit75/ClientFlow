@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiGet, apiSend, apiSendForm } from "@/lib/api/client";
 import { formatConversationTimestamp, formatMessageTimestamp } from "@/lib/format-timestamp";
+import { useInboxCache } from "@/lib/inbox-cache";
 import type { ConversationRecord, Message } from "@/lib/backend/types";
 
 interface ImagePreview {
@@ -85,19 +86,22 @@ function MessageLoadingState() {
 }
 
 export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
-  const [conversations, setConversations] = useState<ConversationRecord[]>([]);
-  const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const inboxCache = useInboxCache();
+  const cachedSnapshot = useRef(inboxCache?.get() ?? null).current;
+
+  const [conversations, setConversations] = useState<ConversationRecord[]>(cachedSnapshot?.conversations ?? []);
+  const [selectedContactId, setSelectedContactId] = useState<string>(cachedSnapshot?.selectedContactId ?? "");
   const [profileContactId, setProfileContactId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [newMessage, setNewMessage] = useState("");
-  const [messages, setMessages] = useState<Record<string, Message[]>>({});
+  const [messages, setMessages] = useState<Record<string, Message[]>>(cachedSnapshot?.messages ?? {});
   const [composerHint, setComposerHint] = useState("");
-  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(!cachedSnapshot);
   const [isLoadingMoreConversations, setIsLoadingMoreConversations] = useState(false);
-  const [conversationCursor, setConversationCursor] = useState<string | null>(null);
-  const [hasMoreConversations, setHasMoreConversations] = useState(false);
-  const [messageCursors, setMessageCursors] = useState<Record<string, string | null>>({});
-  const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({});
+  const [conversationCursor, setConversationCursor] = useState<string | null>(cachedSnapshot?.conversationCursor ?? null);
+  const [hasMoreConversations, setHasMoreConversations] = useState(cachedSnapshot?.hasMoreConversations ?? false);
+  const [messageCursors, setMessageCursors] = useState<Record<string, string | null>>(cachedSnapshot?.messageCursors ?? {});
+  const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>(cachedSnapshot?.hasMoreMessages ?? {});
   const [isLoadingMessages, setIsLoadingMessages] = useState<Record<string, boolean>>({});
   const [loadingMoreMessages, setLoadingMoreMessages] = useState<Record<string, boolean>>({});
   const [inboxError, setInboxError] = useState("");
@@ -123,6 +127,23 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
   useEffect(() => {
     selectedContactIdRef.current = selectedContactId;
   }, [selectedContactId]);
+
+  // Save inbox state to cache on unmount so it survives tab switches
+  useEffect(() => {
+    return () => {
+      inboxCache?.set({
+        conversations: conversationsRef.current,
+        messages,
+        selectedContactId: selectedContactIdRef.current,
+        conversationCursor,
+        hasMoreConversations,
+        messageCursors,
+        hasMoreMessages,
+        savedAt: Date.now(),
+      });
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inboxCache, messages, conversationCursor, hasMoreConversations, messageCursors, hasMoreMessages]);
 
   useEffect(() => {
     let mounted = true;
