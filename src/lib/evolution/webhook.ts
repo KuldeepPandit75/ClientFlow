@@ -63,11 +63,22 @@ export async function handleEvolutionWebhook(request: Request) {
   });
 
   const db = await getDb();
-  if (eventKey) {
+
+  // Ensure unique dedup index exists. Use partialFilterExpression instead of sparse
+  // because sparse indexes still fail if the field exists with value null.
+  try {
     await db.collection("webhook_events").createIndex(
       { eventKey: 1 },
-      { unique: true, sparse: true, name: "webhook_events_event_key_unique" },
+      {
+        unique: true,
+        partialFilterExpression: { eventKey: { $type: "string" } },
+        name: "webhook_events_event_key_unique_v2",
+      },
     );
+    // Drop the old problematic index if it exists
+    await db.collection("webhook_events").dropIndex("webhook_events_event_key_unique").catch(() => {});
+  } catch {
+    // Index may already exist, ignore
   }
 
   let eventLog;
@@ -75,7 +86,7 @@ export async function handleEvolutionWebhook(request: Request) {
     eventLog = await db.collection("webhook_events").insertOne({
       provider: "evolution",
       event,
-      eventKey,
+      ...(eventKey ? { eventKey } : {}),
       instanceName,
       payload: body,
       status: "received",
