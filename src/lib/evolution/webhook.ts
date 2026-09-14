@@ -300,12 +300,11 @@ async function runAutomationForBusiness(
         "automationSession.nudgeSentForVersion": null,
         "automationSession.closedForVersion": null,
         updatedAt: now,
-        ...(pushName ? { customerName: pushName } : {}),
+        customerName: pushName || remoteJid.split("@")[0] || "Unknown",
       },
       $setOnInsert: {
         businessId: businessObjectId,
         customerId: remoteJid,
-        customerName: pushName || remoteJid.split("@")[0] || "Unknown",
         phone: `+${remoteJid.split("@")[0]?.replace(/\D/g, "")}`,
         assignedAgentId: null,
         tags: [],
