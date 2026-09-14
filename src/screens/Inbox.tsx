@@ -6,6 +6,7 @@ import { Check, CheckCheck, Search, Paperclip, Send, Smile, Phone, Video, Bot, U
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiGet, apiSend, apiSendForm } from "@/lib/api/client";
+import { formatConversationTimestamp, formatMessageTimestamp } from "@/lib/format-timestamp";
 import type { ConversationRecord, Message } from "@/lib/backend/types";
 
 interface ImagePreview {
@@ -29,36 +30,56 @@ const CONVERSATION_PAGE_SIZE = 10;
 const MESSAGE_PAGE_SIZE = 15;
 
 function ChatListSkeleton() {
+  const widths = [128, 96, 144, 112, 136, 104, 120, 140];
   return (
-    <>
+    <div className="animate-in fade-in duration-300">
       {Array.from({ length: 8 }).map((_, index) => (
-        <div key={index} className="flex items-center gap-3 border-b border-border/50 px-4 py-3.5">
-          <Skeleton className="h-11 w-11 rounded-full" />
-          <div className="flex-1 space-y-2">
+        <div
+          key={index}
+          className="flex items-center gap-3 border-b border-border/30 px-4 py-3.5"
+          style={{ animationDelay: `${index * 60}ms` }}
+        >
+          <Skeleton className="h-11 w-11 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-2.5">
             <div className="flex items-center justify-between gap-4">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-10" />
+              <Skeleton className="h-3.5 rounded" style={{ width: widths[index] }} />
+              <Skeleton className="h-3 w-10 rounded" />
             </div>
-            <Skeleton className="h-3 w-44" />
+            <Skeleton className="h-3 w-3/4 rounded" />
           </div>
         </div>
       ))}
-    </>
+    </div>
   );
 }
 
 function MessageLoadingState() {
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-muted-foreground">Messages are loading...</div>
-      <div className="flex justify-start">
-        <Skeleton className="h-16 w-64 rounded-2xl rounded-tl-sm" />
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 py-16 animate-in fade-in duration-500">
+      <div className="relative flex items-center justify-center">
+        <span className="absolute inline-flex h-10 w-10 animate-ping rounded-full bg-primary/20" />
+        <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+          <svg className="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        </span>
       </div>
-      <div className="flex justify-end">
-        <Skeleton className="h-14 w-56 rounded-2xl rounded-tr-sm" />
+      <div className="text-center">
+        <p className="text-sm font-medium text-foreground/70">Loading messages</p>
+        <p className="mt-1 text-xs text-muted-foreground">Fetching conversation history…</p>
       </div>
-      <div className="flex justify-start">
-        <Skeleton className="h-20 w-72 rounded-2xl rounded-tl-sm" />
+      {/* Skeleton message bubbles for context */}
+      <div className="mt-4 w-full max-w-md space-y-3 px-4">
+        <div className="flex justify-start">
+          <Skeleton className="h-12 w-52 rounded-2xl rounded-tl-sm" />
+        </div>
+        <div className="flex justify-end">
+          <Skeleton className="h-10 w-44 rounded-2xl rounded-tr-sm" />
+        </div>
+        <div className="flex justify-start">
+          <Skeleton className="h-14 w-60 rounded-2xl rounded-tl-sm" />
+        </div>
       </div>
     </div>
   );
@@ -483,32 +504,34 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
               <button
                 key={contact.id}
                 onClick={() => setSelectedContactId(contact.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all duration-200 border-b border-border/50 ${
-                  selectedContact?.id === contact.id ? "bg-secondary" : "hover:bg-secondary/50"
+                className={`group w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 border-b border-border/30 ${
+                  selectedContact?.id === contact.id
+                    ? "bg-primary/[0.07] border-l-2 border-l-primary"
+                    : "hover:bg-secondary/60 border-l-2 border-l-transparent"
                 }`}
               >
-                <div className="relative">
+                <div className="relative shrink-0">
                   {contact.avatar ? (
-                    <img src={contact.avatar} alt="" className="w-11 h-11 rounded-full object-cover bg-secondary" />
+                    <img src={contact.avatar} alt="" className="w-11 h-11 rounded-full object-cover bg-secondary ring-1 ring-border/40" />
                   ) : (
-                    <div className="w-11 h-11 rounded-full bg-secondary flex items-center justify-center text-foreground font-bold text-xs">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-secondary to-secondary/60 flex items-center justify-center text-foreground/80 font-semibold text-xs ring-1 ring-border/40">
                       {initials(contact.customerName)}
                     </div>
                   )}
                   {(contact.status === 'online' || contact.status === "typing") && (
-                    <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-online border-2 border-card" />
+                    <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-sm truncate">{contact.customerName}</p>
-                    <span className="text-[11px] text-muted-foreground flex-shrink-0">{contact.timestamp}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`text-sm truncate ${contact.unread > 0 ? "font-bold" : "font-semibold"}`}>{contact.customerName}</p>
+                    <span className={`text-[11px] flex-shrink-0 ${contact.unread > 0 ? "text-primary font-medium" : "text-muted-foreground"}`}>{formatConversationTimestamp(contact.timestamp)}</span>
                   </div>
-                  <div className="flex items-center justify-between mt-0.5">
-                    <p className="text-xs text-muted-foreground truncate">{contact.lastMessage}</p>
+                  <div className="flex items-center justify-between mt-0.5 gap-2">
+                    <p className={`text-xs truncate ${contact.unread > 0 ? "text-foreground/70 font-medium" : "text-muted-foreground"}`}>{contact.lastMessage}</p>
                     {contact.unread > 0 && (
-                      <span className="flex-shrink-0 ml-2 bg-primary text-primary-foreground text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                        {contact.unread}
+                      <span className="flex-shrink-0 bg-primary text-primary-foreground text-[10px] font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
+                        {contact.unread > 99 ? "99+" : contact.unread}
                       </span>
                     )}
                   </div>
@@ -516,12 +539,26 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
               </button>
             ))}
             {!isLoadingConversations && filteredContacts.length === 0 && (
-              <div className="px-4 py-8 text-sm text-muted-foreground">
-                {searchQuery ? "No matching conversations." : "No Evolution chats found yet."}
+              <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium text-foreground/70">
+                  {searchQuery ? "No matching conversations" : "No chats yet"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {searchQuery ? "Try a different search term" : "Conversations will appear once WhatsApp syncs"}
+                </p>
               </div>
             )}
             {isLoadingMoreConversations && (
-              <div className="px-4 py-3 text-center text-xs text-muted-foreground">Loading more chats...</div>
+              <div className="flex items-center justify-center gap-2 px-4 py-3">
+                <svg className="h-3.5 w-3.5 animate-spin text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="text-xs text-muted-foreground">Loading more…</span>
+              </div>
             )}
           </div>
         </div>
@@ -530,31 +567,35 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
         {selectedContact ? (
         <div className="hidden md:flex flex-col flex-1 min-w-0">
           {/* Chat Header */}
-          <div className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-card">
+          <div className="flex items-center justify-between px-6 py-3 border-b border-border/60 bg-card/95 backdrop-blur-sm">
             <button
               type="button"
               onClick={() => setProfileContactId(selectedContact.id)}
-              className="flex min-w-0 items-center gap-3 rounded-xl pr-3 text-left transition-colors hover:bg-secondary"
+              className="flex min-w-0 items-center gap-3 rounded-xl py-1 pr-4 text-left transition-colors hover:bg-secondary/60"
               title="View contact profile"
             >
-              <div className="relative">
+              <div className="relative shrink-0">
                 {selectedContact.avatar ? (
-                  <img src={selectedContact.avatar} alt="" className="w-10 h-10 rounded-full object-cover bg-secondary" />
+                  <img src={selectedContact.avatar} alt="" className="w-10 h-10 rounded-full object-cover bg-secondary ring-1 ring-border/40" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-foreground font-bold text-xs">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-secondary to-secondary/60 flex items-center justify-center text-foreground/80 font-semibold text-xs ring-1 ring-border/40">
                     {initials(selectedContact.customerName)}
                   </div>
                 )}
                 {(selectedContact.status === "online" || selectedContact.status === "typing") && (
-                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card bg-online" />
+                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card bg-emerald-500" />
                 )}
               </div>
-              <div>
-                <p className="font-semibold text-sm">{selectedContact.customerName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {[selectedContact.phone, selectedContact.status === "typing" ? "typing..." : selectedContact.status === "online" ? "online" : ""]
-                    .filter(Boolean)
-                    .join(" · ")}
+              <div className="min-w-0">
+                <p className="font-semibold text-sm truncate">{selectedContact.customerName}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {selectedContact.status === "typing" ? (
+                    <span className="text-emerald-600 font-medium">typing…</span>
+                  ) : (
+                    [selectedContact.phone, selectedContact.status === "online" ? "online" : ""]
+                      .filter(Boolean)
+                      .join(" · ")
+                  )}
                 </p>
               </div>
             </button>
@@ -576,16 +617,30 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
                 type="button"
                 onClick={() => void loadMoreMessages()}
                 disabled={loadingMoreMessages[selectedContact.id]}
-                className="mx-auto block rounded-full bg-card px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:bg-secondary disabled:opacity-60"
+                className="mx-auto flex items-center gap-2 rounded-full bg-card/90 backdrop-blur-sm px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm ring-1 ring-border/30 transition-all hover:bg-card hover:shadow-md disabled:opacity-60"
               >
-                {loadingMoreMessages[selectedContact.id] ? "Loading older messages..." : "Load older messages"}
+                {loadingMoreMessages[selectedContact.id] && (
+                  <svg className="h-3 w-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {loadingMoreMessages[selectedContact.id] ? "Loading…" : "Load older messages"}
               </button>
             )}
             {!inboxError && selectedMessagesLoading && currentMessages.length === 0 && (
               <MessageLoadingState />
             )}
             {!inboxError && !selectedMessagesLoading && currentMessages.length === 0 && (
-              <div className="text-sm text-muted-foreground">No messages loaded for this chat yet.</div>
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-card shadow-sm ring-1 ring-border/30">
+                  <Send className="h-6 w-6 text-muted-foreground/60" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-foreground/70">No messages yet</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Send a message to start the conversation</p>
+                </div>
+              </div>
             )}
             {currentMessages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.sender === 'customer' ? 'justify-start' : 'justify-end'}`}>
@@ -647,7 +702,7 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
                     <p className="text-sm leading-relaxed">{msg.content}</p>
                   )}
                   <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-                    <span>{msg.timestamp}</span>
+                    <span>{formatMessageTimestamp(msg.timestamp)}</span>
                     {msg.sender === "agent" && (
                       msg.deliveryStatus === "read" ? (
                         <CheckCheck className="h-3 w-3 text-sky-500" />
@@ -664,9 +719,9 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
           </div>
 
           {/* Message Input */}
-          <div className="p-4 border-t border-border bg-card">
-            <div className="flex items-center gap-2">
-              <button onClick={() => setNewMessage((prev) => `${prev}🙂`)} className="p-2.5 rounded-xl hover:bg-secondary transition-colors text-muted-foreground" title="Insert emoji"><Smile className="w-5 h-5" /></button>
+          <div className="border-t border-border/60 bg-card/95 backdrop-blur-sm px-4 py-3">
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => setNewMessage((prev) => `${prev}🙂`)} className="p-2 rounded-lg hover:bg-secondary/80 transition-colors text-muted-foreground hover:text-foreground" title="Insert emoji"><Smile className="w-5 h-5" /></button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -677,14 +732,14 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
               <button
                 onClick={openAttachmentPicker}
                 disabled={isSendingAttachment}
-                className="p-2.5 rounded-xl hover:bg-secondary transition-colors text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                className="p-2 rounded-lg hover:bg-secondary/80 transition-colors text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 title="Attach file"
               >
                 <Paperclip className="w-5 h-5" />
               </button>
               <Input
                 placeholder="Type a message..."
-                className="flex-1 bg-secondary border-0 rounded-xl h-10"
+                className="flex-1 bg-secondary/70 border-0 rounded-xl h-10 focus-visible:bg-secondary focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => {
@@ -694,19 +749,25 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
               <button
                 onClick={() => void handleSend()}
                 disabled={isSendingAttachment || !newMessage.trim()}
-                className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                 title="Send message"
               >
                 <Send className="w-4 h-4" />
               </button>
             </div>
-            {composerHint && <p className="mt-2 text-xs text-muted-foreground">{composerHint}</p>}
-            {sendError && <p className="mt-2 text-xs text-destructive">{sendError}</p>}
+            {composerHint && <p className="mt-2 text-xs text-muted-foreground animate-in fade-in duration-200">{composerHint}</p>}
+            {sendError && <p className="mt-2 text-xs text-destructive animate-in fade-in duration-200">{sendError}</p>}
           </div>
         </div>
         ) : (
-          <div className="hidden md:flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            Connect WhatsApp and wait for Evolution to sync chats.
+          <div className="hidden md:flex flex-1 flex-col items-center justify-center gap-4 bg-chat-bg">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-card shadow-sm ring-1 ring-border/30">
+              <Search className="h-7 w-7 text-muted-foreground/50" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-foreground/60">No conversation selected</p>
+              <p className="mt-1 text-xs text-muted-foreground">Select a chat from the sidebar or wait for WhatsApp to sync</p>
+            </div>
           </div>
         )}
         {selectedContact && showContactProfile && (
