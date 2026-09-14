@@ -30,19 +30,18 @@ const CONVERSATION_PAGE_SIZE = 10;
 const MESSAGE_PAGE_SIZE = 15;
 
 function ChatListSkeleton() {
-  const widths = [128, 96, 144, 112, 136, 104, 120, 140];
+  const widths = ["w-32", "w-24", "w-36", "w-28", "w-34", "w-26", "w-30", "w-36"];
   return (
     <div className="animate-in fade-in duration-300">
       {Array.from({ length: 8 }).map((_, index) => (
         <div
           key={index}
           className="flex items-center gap-3 border-b border-border/30 px-4 py-3.5"
-          style={{ animationDelay: `${index * 60}ms` }}
         >
           <Skeleton className="h-11 w-11 shrink-0 rounded-full" />
           <div className="flex-1 space-y-2.5">
             <div className="flex items-center justify-between gap-4">
-              <Skeleton className="h-3.5 rounded" style={{ width: widths[index] }} />
+              <Skeleton className={`h-3.5 rounded ${widths[index]}`} />
               <Skeleton className="h-3 w-10 rounded" />
             </div>
             <Skeleton className="h-3 w-3/4 rounded" />
