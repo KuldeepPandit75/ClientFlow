@@ -77,33 +77,52 @@ async function upsertCustomers(businessId: string, conversations: ConversationRe
   const now = new Date();
   const businessObjectId = new ObjectId(businessId);
 
-  const ops = conversations.map((conversation) => ({
-    updateOne: {
-      filter: { businessId: businessObjectId, customerId: conversation.customerId },
-      update: {
-        $set: {
-          customerName: conversation.customerName,
-          phone: conversation.phone,
-          avatar: conversation.avatar,
-          source: conversation.source,
-          relatedJids: conversation.relatedJids || [],
-          lastMessage: conversation.lastMessage,
-          lastMessageAt: conversation.lastMessageAt || 0,
-          unreadCount: conversation.unread || 0,
-          conversationStatus: conversation.conversationStatus || "open",
-          accountKey: conversation.accountKey || "primary",
-          updatedAt: now,
+  const existingRecords = await db.collection<CustomerRecord>("customers")
+    .find({ businessId: businessObjectId, customerId: { $in: conversations.map((item) => item.customerId) } })
+    .toArray();
+  const existingMap = new Map(existingRecords.map((r) => [r.customerId, r]));
+
+  const ops = conversations.map((conversation) => {
+    const existing = existingMap.get(conversation.customerId);
+    let finalName = conversation.customerName;
+
+    // Don't overwrite a better existing name with a fallback phone number
+    if (existing && existing.customerName) {
+      const isExistingPhone = existing.customerName === existing.phone || /^\\+?\\d+$/.test(existing.customerName.replace(/\\s/g, ""));
+      const isNewPhone = conversation.customerName === conversation.phone || /^\\+?\\d+$/.test(conversation.customerName.replace(/\\s/g, ""));
+      if (!isExistingPhone && isNewPhone) {
+        finalName = existing.customerName;
+      }
+    }
+
+    return {
+      updateOne: {
+        filter: { businessId: businessObjectId, customerId: conversation.customerId },
+        update: {
+          $set: {
+            customerName: finalName,
+            phone: conversation.phone,
+            avatar: conversation.avatar || existing?.avatar,
+            source: conversation.source,
+            relatedJids: conversation.relatedJids || [],
+            lastMessage: conversation.lastMessage,
+            lastMessageAt: Math.max(conversation.lastMessageAt || 0, existing?.lastMessageAt || 0),
+            unreadCount: (existing?.unreadCount || 0) + (conversation.unread || 0),
+            conversationStatus: existing?.conversationStatus && existing.conversationStatus !== "pending" && (conversation.unread || 0) === 0 ? existing.conversationStatus : (conversation.conversationStatus || "open"),
+            accountKey: conversation.accountKey || "primary",
+            updatedAt: now,
+          },
+          $setOnInsert: {
+            businessId: businessObjectId,
+            customerId: conversation.customerId,
+            assignedAgentId: null,
+            createdAt: now,
+          },
         },
-        $setOnInsert: {
-          businessId: businessObjectId,
-          customerId: conversation.customerId,
-          assignedAgentId: null,
-          createdAt: now,
-        },
+        upsert: true,
       },
-      upsert: true,
-    },
-  }));
+    };
+  });
 
   await db.collection<CustomerRecord>("customers").bulkWrite(ops, { ordered: false });
 
@@ -261,16 +280,32 @@ async function doSyncRecentEvolutionCustomers(context: Awaited<ReturnType<typeof
 
   const results = await Promise.all(
     accountKeys.map(async (accountKey) => {
-      const items: ConversationRecord[] = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore && items.length < 500) {
-        const conversations = await listEvolutionConversations(context.ownerEmail, page, 50, accountKey);
-        items.push(...conversations.items);
-        hasMore = conversations.hasMore;
-        page += 1;
+      // Fetch only the first page synchronously to return quickly
+      const conversations = await listEvolutionConversations(context.ownerEmail, 1, 50, accountKey);
+      
+      // If there are more pages, spawn a background task to fetch and upsert them
+      if (conversations.hasMore) {
+        void (async () => {
+           try {
+              const backgroundItems: ConversationRecord[] = [];
+              let page = 2;
+              let hasMore = true;
+              while (hasMore && backgroundItems.length < 500) {
+                const bgConversations = await listEvolutionConversations(context.ownerEmail, page, 50, accountKey);
+                backgroundItems.push(...bgConversations.items);
+                hasMore = bgConversations.hasMore;
+                page += 1;
+              }
+              if (backgroundItems.length > 0) {
+                 await upsertCustomers(context.businessId, backgroundItems);
+              }
+           } catch (err) {
+              console.warn("[Background Sync] Failed to sync all conversations:", err);
+           }
+        })();
       }
-      return items;
+      
+      return conversations.items;
     }),
   );
 

@@ -206,6 +206,19 @@ export async function disconnectWhatsApp(userEmail: string, accountKeyInput?: st
     targetId: result.evolution?.instanceName,
     metadata: { accountKey },
   });
+
+  // Clear local customers and messages to prevent chats from the previous connection
+  // showing up when a new WhatsApp number is connected
+  const db = await getDb();
+  await db.collection("customers").deleteMany({ 
+    businessId: new ObjectId(context.businessId), 
+    accountKey 
+  });
+  await db.collection("messages").deleteMany({ 
+    businessId: new ObjectId(context.businessId), 
+    accountKey 
+  });
+
   return result;
 }
 

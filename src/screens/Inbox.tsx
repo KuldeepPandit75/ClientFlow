@@ -133,7 +133,14 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
       }
     }
     void loadSettings();
-    return () => { mounted = false; };
+    
+    // Poll settings to catch connection status changes (e.g. when returning from the settings page)
+    const interval = window.setInterval(() => void loadSettings(), 12000);
+    
+    return () => { 
+      mounted = false; 
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
