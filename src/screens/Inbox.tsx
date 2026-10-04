@@ -8,7 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiGet, apiSend, apiSendForm } from "@/lib/api/client";
 import { formatConversationTimestamp, formatMessageTimestamp } from "@/lib/format-timestamp";
 import { useInboxCache } from "@/lib/inbox-cache";
-import type { ConversationRecord, Message } from "@/lib/backend/types";
+import type { ConversationRecord, Message, WhatsAppSettings } from "@/lib/backend/types";
+import Link from "next/link";
 
 interface ImagePreview {
   src: string;
@@ -109,6 +110,7 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
   const [isSendingAttachment, setIsSendingAttachment] = useState(false);
   const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
   const [newMessagePopup, setNewMessagePopup] = useState<NewMessagePopup | null>(null);
+  const [whatsappSettings, setWhatsappSettings] = useState<WhatsAppSettings | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatListRef = useRef<HTMLDivElement>(null);
   const messagesPaneRef = useRef<HTMLDivElement>(null);
@@ -119,6 +121,20 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
   const isLoadingMoreConversationsRef = useRef(false);
   const seenMessageIdsRef = useRef<Record<string, Set<string>>>({});
   const seenConversationLastMessageRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadSettings() {
+      try {
+        const settings = await apiGet<WhatsAppSettings>("/api/settings/whatsapp");
+        if (mounted) setWhatsappSettings(settings);
+      } catch (error) {
+        // ignore
+      }
+    }
+    void loadSettings();
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -569,6 +585,13 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
                 <p className="mt-1 text-xs text-muted-foreground">
                   {searchQuery ? "Try a different search term" : "Conversations will appear once WhatsApp syncs"}
                 </p>
+                {whatsappSettings && !whatsappSettings.connected && !searchQuery && (
+                  <Link href="/settings" className="mt-4">
+                    <button type="button" className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors">
+                      Connect WhatsApp
+                    </button>
+                  </Link>
+                )}
               </div>
             )}
             {isLoadingMoreConversations && (
@@ -788,6 +811,13 @@ export const Inbox = ({ title = "Inbox" }: { title?: string }) => {
               <p className="text-sm font-medium text-foreground/60">No conversation selected</p>
               <p className="mt-1 text-xs text-muted-foreground">Select a chat from the sidebar or wait for WhatsApp to sync</p>
             </div>
+            {whatsappSettings && !whatsappSettings.connected && (
+              <Link href="/settings" className="mt-2">
+                <button type="button" className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors">
+                  Connect WhatsApp
+                </button>
+              </Link>
+            )}
           </div>
         )}
         {selectedContact && showContactProfile && (
